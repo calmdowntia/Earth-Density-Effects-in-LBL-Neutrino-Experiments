@@ -1,0 +1,141 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.linalg import expm
+
+theta12, theta13, theta23 = np.radians(33.44), np.radians(8.57), np.radians(49.2)
+dm21, dm31 = 7.42e-5, 2.517e-3
+delta_true = -np.pi / 2
+
+E_vals = np.linspace(2.0, 6.0, 60)
+dE = E_vals[1] - E_vals[0]
+NORM = 1e4
+
+def flux(E):          return np.exp(-E / 3)
+def cross_section(E): return E
+def efficiency(E):    return 0.8
+
+def PMNS(delta):
+    c12, s12 = np.cos(theta12), np.sin(theta12)
+    c13, s13 = np.cos(theta13), np.sin(theta13)
+    c23, s23 = np.cos(theta23), np.sin(theta23)
+    return np.array([
+        [c12*c13, s12*c13, s13*np.exp(-1j*delta)],
+        [-s12*c23 - c12*s23*s13*np.exp(1j*delta),
+          c12*c23 - s12*s23*s13*np.exp(1j*delta), s23*c13],
+        [ s12*s23 - c12*c23*s13*np.exp(1j*delta),
+         -c12*s23 - s12*c23*s13*np.exp(1j*delta), c23*c13]
+    ])
+
+def Hamiltonian(E, delta, rho, anti=False):
+    U = PMNS(delta)
+    M2 = np.diag([0, dm21, dm31])
+    H_vac = U @ M2 @ np.conjugate(U.T)
+    A = 7.6e-5 * rho * E * (-1 if anti else 1)
+    return (H_vac + np.diag([A, 0, 0])) / (2 * E)
+
+R = 6371.0
+
+def prem_density_at_r(r):
+    if r < 1220:   return 13.0
+    elif r < 3480: return 11.0
+    elif r < 5700: return 5.0
+    else:          return 3.3
+
+def prem_density_profile(L, n_steps=500):
+    densities = []
+    dx = L / n_steps
+    for i in range(n_steps):
+        x = i * dx
+        y = x - L / 2
+        r = np.sqrt(max(R**2 - (L/2)**2 + y**2, 0))
+        densities.append(prem_density_at_r(r))
+    return np.array(densities)
+
+rho_avg_dict = {L: prem_path_average(L) for L in baselines}
+
+def prem_path_average(L, n_steps=500):
+    return np.mean(prem_density_profile(L, n_steps))
+
+def prob_const(E, delta, L, rho, anti=False):
+    H = Hamiltonian(E, delta, rho, anti)
+    U = expm(-1j * 1.27 * H * L)
+    return np.abs(U[0, 1])**2
+
+def prob_prem(E, delta, L, anti=False):
+    state = np.array([0, 1, 0], dtype=complex)
+    n_steps = 500
+    dx = L / n_steps
+    rhos = prem_density_profile(L, n_steps)
+    for rho in rhos:
+        H = Hamiltonian(E, delta, rho, anti)
+        U = expm(-1j * 1.27 * H * dx)
+        state = U @ state
+    return np.abs(state[0])**2
+
+def event_rates(delta, L, use_prem=True, anti=False, rho_const=3.3):
+    rates = []
+    for E in E_vals:
+        if use_prem:
+            P = prob_prem(E, delta, L, anti)
+        else:
+            P = prob_const(E, delta, L, rho_const, anti)
+        rates.append(NORM * flux(E) * cross_section(E) * efficiency(E) * P * dE)
+    return np.array(rates)
+
+def chi_square(test, true):
+    return np.sum((test - true)**2 / (true + 1.0))
+
+def find_best_fit(true_nu, true_anu, L, use_prem, rho_const=3.3):
+    delta_scan = np.linspace(-np.pi, np.pi, 360)
+    chi2 = []
+    for d in delta_scan:
+        t_nu  = event_rates(d, L, use_prem=use_prem, anti=False,
+                            rho_const=rho_const)
+        t_anu = event_rates(d, L, use_prem=use_prem, anti=True,
+                            rho_const=rho_const)
+        chi2.append(chi_square(t_nu, true_nu) + chi_square(t_anu, true_anu))
+    return np.degrees(delta_scan[np.argmin(chi2)])
+baselines = [1000, 2000, 3000, 4000, 5000, 7000, 9000, 12000]
+bias_list = []
+rho_avgs  = []
+
+print(f"{'Baseline (km)':<18} {'ρ_avg (g/cm³)':<18} {'Const. best-fit':<20} {'Bias (°)'}")
+print("-" * 70)
+
+for L in baselines:
+    rho_avg = rho_avg_dict[L]  # e.g. 4.3 g/cm³ for L=5000 km
+
+    true_nu  = event_rates(delta_true, L, use_prem=True, anti=False)
+    true_anu = event_rates(delta_true, L, use_prem=True, anti=True)
+
+    best_fit_const = find_best_fit(true_nu, true_anu, L,
+                                   use_prem=False, rho_const=rho_avg)
+    bias = best_fit_const - np.degrees(delta_true)
+
+    if bias > 180:  bias -= 360
+    if bias < -180: bias += 360
+
+    bias_list.append(abs(bias))
+    print(f"{L:<18} {rho_avg:<18.3f} {best_fit_const:<20.1f} {abs(bias):.1f}°")
+
+fig1, ax1 = plt.subplots(figsize=(8, 5))
+
+ax1.plot(baselines, bias_list, 'o-', color='crimson', linewidth=2, markersize=8)
+ax1.set_yscale('log')
+ax1.set_xlabel("Baseline (km)", fontsize=13)
+ax1.set_ylabel(r"|Bias in $\delta_{CP}$| (degrees)", fontsize=13)
+ax1.set_title("Constant Density Bias vs Baseline", fontsize=14)
+ax1.axhline(1,  linestyle=':', color='gray', alpha=0.7, label='1° reference')
+ax1.axhline(10, linestyle=':', color='gray', alpha=0.5, label='10° reference')
+ax1.grid(True, which='both', alpha=0.4)
+ax1.legend(fontsize=10)
+
+for x, y in zip(baselines, bias_list):
+    if x >= 3000:
+        ax1.annotate(f"{y:.1f}°", (x, y),
+                     textcoords="offset points",
+                     xytext=(0, 10), ha='center', fontsize=9)
+
+plt.tight_layout()
+plt.savefig("figure_bias_vs_baseline.png", dpi=150)
+plt.show()
