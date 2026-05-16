@@ -1,7 +1,43 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.linalg import expm
+import matplotlib
+matplotlib.rcParams.update({
+    "text.usetex": False,
+    "font.family": "serif",
+    "font.serif": ["DejaVu Serif","Times New Roman","Times"],
 
+    "font.size":14,
+    "axes.labelsize":16,
+    "axes.titlesize":16,
+    "xtick.labelsize":13,
+    "ytick.labelsize":13,
+
+    "legend.fontsize":11,
+    "legend.framealpha":0.92,
+    "legend.edgecolor":"0.45",
+
+    "lines.linewidth":2.2,
+    "axes.linewidth":1.2,
+
+    "xtick.direction":"in",
+    "ytick.direction":"in",
+
+    "xtick.major.size":6,
+    "ytick.major.size":6,
+    "xtick.minor.size":3,
+    "ytick.minor.size":3,
+
+    "xtick.minor.visible":True,
+    "ytick.minor.visible":True,
+
+    "xtick.top":True,
+    "ytick.right":True,
+
+    "figure.dpi":200,
+    "savefig.dpi":300,
+    "savefig.bbox":"tight"
+})
 Ye = 0.5
 km_to_eV_inv = 5.07e9
 
@@ -105,14 +141,93 @@ def total_error(N):
 err_const = total_error(N_const)
 err_prem  = total_error(N_prem)
 
-plt.figure(figsize=(8, 6))
-plt.plot(energies, N_const, '--', label=f"Constant density ($\\rho$ = {rho_avg:.2f} g/cm³)")
-plt.plot(energies, N_prem, label="PREM profile")
-plt.fill_between(energies, N_const - err_const, N_const + err_const, alpha=0.2)
-plt.fill_between(energies, N_prem - err_prem,   N_prem + err_prem,   alpha=0.2)
-plt.xlabel("Energy (GeV)")
-plt.ylabel("Event Rate (arb. units)")
-plt.title(r"Oscillation with Statistical + Systematic Errors (Normal Ordering)  $\delta_{CP}$ = -90°")
-plt.legend()
-plt.grid()
+fig, ax = plt.subplots(figsize=(9.0,6.0))
+
+prem_color = "#2166AC"     
+const_color = "#D6604D"    
+
+ax.plot(
+    energies,
+    N_const,
+    linestyle="--",
+    color=const_color,
+    label=rf"Constant density ($\rho={rho_avg:.2f}$ g/cm$^3$)"
+)
+
+ax.plot(
+    energies,
+    N_prem,
+    linestyle="-",
+    color=prem_color,
+    label="PREM profile"
+)
+
+ax.fill_between(
+    energies,
+    N_const-err_const,
+    N_const+err_const,
+    color=const_color,
+    alpha=0.12
+)
+
+ax.fill_between(
+    energies,
+    N_prem-err_prem,
+    N_prem+err_prem,
+    color=prem_color,
+    alpha=0.12
+)
+
+ax.set_xlabel(
+    "Energy (GeV)",
+    labelpad=8
+)
+
+ax.set_ylabel(
+    "Event rate (arb. units)",
+    labelpad=8
+)
+
+ax.set_xlim(2,6)
+
+ax.grid(
+    True,
+    which="major",
+    linestyle=":",
+    linewidth=0.7,
+    alpha=0.55
+)
+
+ax.text(
+    0.03,
+    0.95,
+    rf"$L={L}$ km" "\n"
+    r"Normal ordering" "\n"
+    r"$\delta_{CP}=-90^\circ$",
+    transform=ax.transAxes,
+    fontsize=11,
+    verticalalignment="top",
+    bbox=dict(
+        facecolor="white",
+        edgecolor="0.7",
+        alpha=0.85,
+        pad=4
+    )
+)
+
+leg = ax.legend(
+    loc="upper right",
+    framealpha=0.92,
+    edgecolor="0.45",
+    handlelength=2.4,
+    borderpad=0.7
+)
+
+plt.tight_layout(pad=0.8)
+outfile = "event_rate_comparison.png"
+plt.savefig(
+    outfile,
+    dpi=300
+)
+print(f"Saved → {outfile}")
 plt.show()
