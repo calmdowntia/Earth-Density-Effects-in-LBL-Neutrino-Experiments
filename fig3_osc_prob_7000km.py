@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.linalg import expm
 import matplotlib
+
 matplotlib.rcParams.update({
     "text.usetex": False,
     "font.family": "serif",
@@ -230,4 +231,5 @@ plt.savefig(
     dpi=300
 )
 print(f"Saved → {outfile}")
+
 plt.show()
