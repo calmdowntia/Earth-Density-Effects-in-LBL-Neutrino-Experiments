@@ -1,6 +1,45 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.linalg import expm
+import matplotlib
+
+matplotlib.rcParams.update({
+    "text.usetex": False,          
+    "font.family": "serif",
+    "font.serif": ["DejaVu Serif", "Times New Roman", "Times"],
+    "font.size": 14,
+
+    "axes.labelsize": 16,
+    "axes.titlesize": 16,
+
+    "xtick.labelsize": 13,
+    "ytick.labelsize": 13,
+
+    "legend.fontsize": 11,
+    "legend.framealpha": 0.92,
+    "legend.edgecolor": "0.45",
+
+    "axes.linewidth": 1.2,
+    "lines.linewidth": 2.2,
+
+    "xtick.direction": "in",
+    "ytick.direction": "in",
+
+    "xtick.major.size": 6,
+    "ytick.major.size": 6,
+    "xtick.minor.size": 3,
+    "ytick.minor.size": 3,
+
+    "xtick.minor.visible": True,
+    "ytick.minor.visible": True,
+
+    "xtick.top": True,
+    "ytick.right": True,
+
+    "figure.dpi": 200,
+    "savefig.dpi": 300,
+    "savefig.bbox": "tight"
+})
 
 theta12, theta13, theta23 = np.radians(33.44), np.radians(8.57), np.radians(49.2)
 dm21, dm31 = 7.42e-5, 2.517e-3
@@ -51,8 +90,6 @@ def prem_density_profile(L, n_steps=500):
         densities.append(prem_density_at_r(r))
     return np.array(densities)
 
-rho_avg_dict = {L: prem_path_average(L) for L in baselines}
-
 def prem_path_average(L, n_steps=500):
     return np.mean(prem_density_profile(L, n_steps))
 
@@ -95,15 +132,16 @@ def find_best_fit(true_nu, true_anu, L, use_prem, rho_const=3.3):
                             rho_const=rho_const)
         chi2.append(chi_square(t_nu, true_nu) + chi_square(t_anu, true_anu))
     return np.degrees(delta_scan[np.argmin(chi2)])
-baselines = [1000, 2000, 3000, 4000, 5000, 7000, 9000, 12000]
+
+baselines = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 10000, 12000]
 bias_list = []
 rho_avgs  = []
 
 print(f"{'Baseline (km)':<18} {'ρ_avg (g/cm³)':<18} {'Const. best-fit':<20} {'Bias (°)'}")
 print("-" * 70)
-
+rho_avg_dict = {L: prem_path_average(L) for L in baselines}
 for L in baselines:
-    rho_avg = rho_avg_dict[L]  # e.g. 4.3 g/cm³ for L=5000 km
+    rho_avg = rho_avg_dict[L]  
 
     true_nu  = event_rates(delta_true, L, use_prem=True, anti=False)
     true_anu = event_rates(delta_true, L, use_prem=True, anti=True)
@@ -118,24 +156,112 @@ for L in baselines:
     bias_list.append(abs(bias))
     print(f"{L:<18} {rho_avg:<18.3f} {best_fit_const:<20.1f} {abs(bias):.1f}°")
 
-fig1, ax1 = plt.subplots(figsize=(8, 5))
+fig, ax = plt.subplots(figsize=(9.0,6.0))
 
-ax1.plot(baselines, bias_list, 'o-', color='crimson', linewidth=2, markersize=8)
-ax1.set_yscale('log')
-ax1.set_xlabel("Baseline (km)", fontsize=13)
-ax1.set_ylabel(r"|Bias in $\delta_{CP}$| (degrees)", fontsize=13)
-ax1.set_title("Constant Density Bias vs Baseline", fontsize=14)
-ax1.axhline(1,  linestyle=':', color='gray', alpha=0.7, label='1° reference')
-ax1.axhline(10, linestyle=':', color='gray', alpha=0.5, label='10° reference')
-ax1.grid(True, which='both', alpha=0.4)
-ax1.legend(fontsize=10)
+color_bias = "#2166AC"
 
-for x, y in zip(baselines, bias_list):
-    if x >= 3000:
-        ax1.annotate(f"{y:.1f}°", (x, y),
-                     textcoords="offset points",
-                     xytext=(0, 10), ha='center', fontsize=9)
+bias_array = np.array(bias_list)
 
-plt.tight_layout()
-plt.savefig("figure_bias_vs_baseline.png", dpi=150)
+ax.plot(
+    baselines,
+    bias_array,
+    marker="o",
+    color=color_bias,
+    linewidth=2.2,
+    markersize=6,
+    label=r"Constant density approximation",
+    zorder=3
+)
+
+ax.axhline(
+    1,
+    linestyle=":",
+    color="0.35",
+    linewidth=1.5,
+    label=r"$1^\circ$ reference"
+)
+
+ax.axhline(
+    10,
+    linestyle="--",
+    color="0.45",
+    linewidth=1.5,
+    label=r"$10^\circ$ reference"
+)
+
+ax.fill_between(
+    baselines,
+    bias_array,
+    1,
+    where=bias_array > 1,
+    color=color_bias,
+    alpha=0.08,
+    zorder=1
+)
+
+ax.set_yscale("log")
+
+ax.set_xlabel(
+    "Baseline (km)",
+    labelpad=8
+)
+
+ax.set_ylabel(
+    r"$|\Delta\delta_{CP}|$ (degrees)",
+    labelpad=8
+)
+
+ax.set_xlim(900,12300)
+
+ymax = np.max(bias_array)
+ax.set_ylim(0.2, ymax*2.2)
+
+ax.set_xticks(
+    [2000,4000,6000,8000,10000,12000]
+)
+
+ax.grid(
+    True,
+    which="major",
+    linestyle=":",
+    linewidth=0.7,
+    alpha=0.55
+)
+
+
+for x,y in zip(baselines,bias_array):
+
+    if x >= 4000:
+
+        offset = -15 if y > 100 else 10
+
+        ax.annotate(
+            f"{y:.1f}°",
+            (x,y),
+            textcoords="offset points",
+            xytext=(0,offset),
+            ha="center",
+            fontsize=9
+        )
+
+
+leg=ax.legend(
+    loc="upper left",
+    framealpha=0.92,
+    edgecolor="0.45",
+    handlelength=2.3,
+    borderpad=0.7
+)
+
+plt.tight_layout(pad=0.9)
+
+outfile="figure_bias_vs_baseline.png"
+
+plt.savefig(
+    outfile,
+    dpi=300
+)
+
+print(f"Saved → {outfile}")
+
 plt.show()
